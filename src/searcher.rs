@@ -1,3 +1,8 @@
+// This file is part of the uutils grep package.
+//
+// For the full copyright and license information, please view the LICENSE
+// file that was distributed with this source code.
+
 use crate::context_buffer::{ContextBuffer, LineView};
 use crate::line_buffer::LineBuffer;
 use crate::matcher::Matcher;

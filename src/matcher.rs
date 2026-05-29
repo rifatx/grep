@@ -1,3 +1,8 @@
+// This file is part of the uutils grep package.
+//
+// For the full copyright and license information, please view the LICENSE
+// file that was distributed with this source code.
+
 use crate::{Config, RegexMode};
 use onig::{EncodedBytes, Regex, RegexOptions, Region, SearchOptions, Syntax, SyntaxBehavior};
 use onig_sys::{OnigEncCtype_ONIGENC_CTYPE_WORD, OnigEncodingUTF8};
