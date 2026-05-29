@@ -4,7 +4,10 @@
 // file that was distributed with this source code.
 
 use crate::{Config, RegexMode};
-use onig::{EncodedBytes, Regex, RegexOptions, Region, SearchOptions, Syntax, SyntaxBehavior};
+use onig::{
+    EncodedBytes, Regex, RegexOptions, Region, SearchOptions, Syntax, SyntaxBehavior,
+    SyntaxOperator,
+};
 use onig_sys::{OnigEncCtype_ONIGENC_CTYPE_WORD, OnigEncodingUTF8};
 use uucore::error::{UResult, USimpleError};
 
@@ -206,10 +209,22 @@ impl CompiledPattern {
             RegexMode::Fixed => Syntax::asis(),
             RegexMode::Basic => Syntax::grep(),
             RegexMode::Extended => Syntax::gnu_regex(),
-            RegexMode::Perl => Syntax::perl(),
+            RegexMode::Perl => Syntax::perl_ng(),
         };
-        if !matches!(config.regex_mode, RegexMode::Fixed) {
+        if config.regex_mode != RegexMode::Fixed {
+            // GNU grep supports `{,n}` as an alias for `{0,n}`.
             syntax.enable_behavior(SyntaxBehavior::SYNTAX_BEHAVIOR_ALLOW_INTERVAL_LOW_ABBREV);
+        }
+        if config.regex_mode == RegexMode::Perl {
+            // GNU grep supports `(?P<name>...)`.
+            // Unfortunately, the onig crate defines the OP2 flag without the
+            // necessary <<32 bit shift, so we need to hotpatch that here.
+            const _: () =
+                assert!(SyntaxOperator::SYNTAX_OPERATOR_QMARK_CAPITAL_P_NAME.bits() == 0x80000000);
+            const FIXED: SyntaxOperator = SyntaxOperator::from_bits_retain(
+                SyntaxOperator::SYNTAX_OPERATOR_QMARK_CAPITAL_P_NAME.bits() << 32,
+            );
+            syntax.enable_operators(FIXED);
         }
 
         let mut options = RegexOptions::REGEX_OPTION_NONE;
