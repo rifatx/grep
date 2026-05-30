@@ -33,6 +33,7 @@ cargo test
 
 * Does not take `LANG`, etc., into account for handling file encodings (non-UTF8 matches are treated as binary)
 * No localization support yet
+* Performances need to be improved
 
 ## Contributing
 
