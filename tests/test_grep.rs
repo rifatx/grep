@@ -904,6 +904,25 @@ fn recursive_no_file_defaults_to_cwd_not_stdin() {
 }
 
 #[test]
+fn recursive_implicit_cwd_strips_dot_prefix() {
+    // `-r` with no path argument searches the implicit ".", so reported paths
+    // come back as "./only.txt" (or ".\\only.txt" on Windows). GNU strips that
+    // leading prefix; `strip_dot_prefix` in src/searcher.rs must do the same.
+    // A single file keeps the output deterministic and lets us assert the exact
+    // line, which `stdout_contains` in `recursive_no_file_defaults_to_cwd_not_stdin`
+    // cannot (it would also pass with a leaked "./" prefix).
+    let (scene, _) = ucmd();
+    scene.fixtures.mkdir_all("flat");
+    scene.fixtures.write("flat/only.txt", "grep me\n");
+
+    let mut c = scene.cmd(env!("CARGO_BIN_EXE_grep"));
+    c.current_dir(scene.fixtures.plus("flat"))
+        .args(&["-r", "grep"])
+        .succeeds()
+        .stdout_is("only.txt:grep me\n");
+}
+
+#[test]
 fn recursive_with_include_exclude() {
     let (scene, _) = ucmd();
     build_tree(&scene);
