@@ -440,6 +440,17 @@ fn files_with_and_without_matches() {
         .fails_with_code(1)
         .stdout_is("hit\nmiss\n");
 
+    // -L with a pattern that DOES match in one file: the matching file is
+    // excluded from the listing, so only the non-matching file is printed.
+    // This exercises the early-return in `session_handle_match` taken when
+    // `files_without_match` is set and a match is found (src/searcher.rs).
+    let (scene, mut c) = ucmd();
+    scene.fixtures.write("hit", "yes\n");
+    scene.fixtures.write("miss", "no\n");
+    c.args(&["-L", "yes", "hit", "miss"])
+        .succeeds()
+        .stdout_is("miss\n");
+
     // -l early-exits after the first match. Verify it doesn't print twice.
     // when the file has many.
     let (scene, mut c) = ucmd();
@@ -613,6 +624,15 @@ fn line_number_and_byte_offset_prefixes() {
     let (_s, mut c) = ucmd();
     c.args(&["-T", "-n", "x"])
         .pipe_in("x\n")
+        .succeeds()
+        .stdout_contains("1:\tx\n");
+
+    // -T against a real file (not stdin): the line-number field width is
+    // derived from the file size, which only happens on the `File` path in
+    // `process_file` (src/searcher.rs), not the stdin path.
+    let (scene, mut c) = ucmd();
+    scene.fixtures.write("f", "x\n");
+    c.args(&["-T", "-n", "x", "f"])
         .succeeds()
         .stdout_contains("1:\tx\n");
 }
@@ -884,6 +904,25 @@ fn recursive_no_file_defaults_to_cwd_not_stdin() {
 }
 
 #[test]
+fn recursive_implicit_cwd_strips_dot_prefix() {
+    // `-r` with no path argument searches the implicit ".", so reported paths
+    // come back as "./only.txt" (or ".\\only.txt" on Windows). GNU strips that
+    // leading prefix; `strip_dot_prefix` in src/searcher.rs must do the same.
+    // A single file keeps the output deterministic and lets us assert the exact
+    // line, which `stdout_contains` in `recursive_no_file_defaults_to_cwd_not_stdin`
+    // cannot (it would also pass with a leaked "./" prefix).
+    let (scene, _) = ucmd();
+    scene.fixtures.mkdir_all("flat");
+    scene.fixtures.write("flat/only.txt", "grep me\n");
+
+    let mut c = scene.cmd(env!("CARGO_BIN_EXE_grep"));
+    c.current_dir(scene.fixtures.plus("flat"))
+        .args(&["-r", "grep"])
+        .succeeds()
+        .stdout_is("only.txt:grep me\n");
+}
+
+#[test]
 fn recursive_with_include_exclude() {
     let (scene, _) = ucmd();
     build_tree(&scene);
@@ -1022,6 +1061,30 @@ fn recursive_skips_fifos_by_default() {
         .stdout_does_not_contain("fifo");
 }
 
+#[cfg(unix)]
+#[test]
+fn device_skip_on_explicit_special_file_arg() {
+    use std::process::Command;
+
+    // A special file (FIFO) named *directly* as an argument, not via recursion.
+    // With `-D skip` it must be dropped without reading (reading would block
+    // forever, so the test returning at all proves it was skipped). This covers
+    // the top-level special-file branch in `process_path` and `is_special_file`
+    // (src/searcher.rs), distinct from the recursive FIFO path.
+    let (scene, _) = ucmd();
+    let fifo_path = scene.fixtures.plus("fifo");
+    let status = Command::new("mkfifo")
+        .arg(&fifo_path)
+        .status()
+        .expect("mkfifo failed");
+    assert!(status.success(), "could not create FIFO");
+
+    let mut c = scene.cmd(env!("CARGO_BIN_EXE_grep"));
+    c.args(&["-D", "skip", "grep", "fifo"])
+        .fails_with_code(1)
+        .no_output();
+}
+
 #[test]
 fn nonexistent_file_is_error() {
     let (_s, mut c) = ucmd();
@@ -1033,11 +1096,18 @@ fn nonexistent_file_is_error() {
 #[test]
 fn nonexistent_file_error_has_no_os_error_suffix() {
     // GNU prints "grep: <file>: No such file or directory" with no
-    // " (os error 2)" suffix; strip_errno keeps us byte-compatible.
+    // " (os error 2)" suffix; strip_errno keeps us byte-compatible. The
+    // underlying OS message text differs on Windows, but in both cases the
+    // trailing " (os error N)" must be absent.
+    #[cfg(not(windows))]
+    let expected = "grep: does-not-exist: No such file or directory\n";
+    #[cfg(windows)]
+    let expected = "grep: does-not-exist: The system cannot find the file specified.\n";
+
     let (_s, mut c) = ucmd();
     c.args(&["x", "does-not-exist"])
         .fails_with_code(2)
-        .stderr_is("grep: does-not-exist: No such file or directory\n");
+        .stderr_is(expected);
 }
 
 #[test]
