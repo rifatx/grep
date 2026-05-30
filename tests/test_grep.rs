@@ -626,6 +626,15 @@ fn line_number_and_byte_offset_prefixes() {
         .pipe_in("x\n")
         .succeeds()
         .stdout_contains("1:\tx\n");
+
+    // -T against a real file (not stdin): the line-number field width is
+    // derived from the file size, which only happens on the `File` path in
+    // `process_file` (src/searcher.rs), not the stdin path.
+    let (scene, mut c) = ucmd();
+    scene.fixtures.write("f", "x\n");
+    c.args(&["-T", "-n", "x", "f"])
+        .succeeds()
+        .stdout_contains("1:\tx\n");
 }
 
 #[test]
