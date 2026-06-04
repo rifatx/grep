@@ -461,6 +461,25 @@ fn files_with_and_without_matches() {
 }
 
 #[test]
+fn files_with_and_without_matches_mutually_exclusive() {
+    // Test that -l and -L are mutually exclusive with last-one-wins semantics
+    let (scene, mut c) = ucmd();
+    scene.fixtures.write("file", "match\n");
+
+    // -l -L: last flag (-L) wins, so no output (file has match, -L excludes it)
+    c.args(&["-l", "-L", "match", "file"])
+        .succeeds()
+        .stdout_only("");
+
+    // -L -l: last flag (-l) wins, so filename is printed
+    let (scene, mut c) = ucmd();
+    scene.fixtures.write("file", "match\n");
+    c.args(&["-L", "-l", "match", "file"])
+        .succeeds()
+        .stdout_only("file\n");
+}
+
+#[test]
 fn count_combined_with_listing_flags() {
     let (scene, _) = ucmd();
     scene.fixtures.write("hit", "yes\n");
