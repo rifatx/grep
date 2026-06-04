@@ -707,14 +707,16 @@ pub fn uu_app() -> Command {
                 .short('L')
                 .long("files-without-match")
                 .help("print only names of FILEs with no selected lines")
-                .action(ArgAction::SetTrue),
+                .action(ArgAction::SetTrue)
+                .overrides_with("files_with_matches"),
         )
         .arg(
             Arg::new("files_with_matches")
                 .short('l')
                 .long("files-with-matches")
                 .help("print only names of FILEs with selected lines")
-                .action(ArgAction::SetTrue),
+                .action(ArgAction::SetTrue)
+                .overrides_with("files_without_match"),
         )
         .arg(
             Arg::new("count")
