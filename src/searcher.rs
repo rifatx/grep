@@ -643,18 +643,19 @@ impl<'a> Searcher<'a> {
 
     /// End-of-file bookkeeping: count / `-L` / binary notice.
     fn session_finalize(&mut self, path: &Path) -> io::Result<bool> {
-        if self.config.quiet {
-            return Ok(self.session_any_match());
-        }
-        if self.config.count && !self.config.files_with_matches && !self.config.files_without_match
-        {
-            self.writer.write_count(self.session_match_count, path)?;
-        }
-        if self.config.files_without_match && !self.session_any_match() {
-            self.writer.write_filename(path)?;
-        }
-        if self.session_should_emit_binary_notice() {
-            self.writer.report_binary_match(path);
+        if !self.config.quiet {
+            if self.config.count
+                && !self.config.files_with_matches
+                && !self.config.files_without_match
+            {
+                self.writer.write_count(self.session_match_count, path)?;
+            }
+            if self.config.files_without_match && !self.session_any_match() {
+                self.writer.write_filename(path)?;
+            }
+            if self.session_should_emit_binary_notice() {
+                self.writer.report_binary_match(path);
+            }
         }
         Ok(self.session_any_match())
     }
